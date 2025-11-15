@@ -4,7 +4,8 @@ import json
 from test_manager import TestManager
 
 # Конфигурация
-ADMIN_PASSWORD = "123"  # Пароль для загрузки
+ADMIN_PASSWORD = "101003"  # Пароль для загрузки
+CANCEL_COMMAND = "/cancel"
 bot = telebot.TeleBot('7722825450:AAHKyoLykpV63lmZisNIargwPh5qQXqFlTg')
 test_manager = TestManager()
 
@@ -13,6 +14,7 @@ bot.set_my_commands([
     telebot.types.BotCommand("help", "Помощь с задачей"),
     telebot.types.BotCommand("tasks", "Список задач"),
     telebot.types.BotCommand("info", "Информация о боте"),
+    telebot.types.BotCommand("admin", "Информация для преподавателей"),
 ])
 
 user_states = {}
@@ -27,6 +29,7 @@ def send_welcome(message):
 /help - Получить помощь с задачей
 /info - Информация о боте
 /tasks - Список доступных задач
+/cancel - Отменить действие
 
 *Как это работает:*
 1. Используйте /help чтобы начать
@@ -36,10 +39,20 @@ def send_welcome(message):
     """
     bot.send_message(message.chat.id, welcome_text, parse_mode='Markdown')
 
+def check_cancel(message):
+    """Проверяет, не хочет ли пользователь отменить действие"""
+    if message.text.strip().lower() == CANCEL_COMMAND.strip().lower():
+        user_states.pop(message.chat.id, None)
+        bot.send_message(message.chat.id, "Действие отменено.")
+        return True
+    return False
 
 @bot.message_handler(commands=['admin'])
 def show_admin_commands(message):
     """Показывает команды для преподавателей после ввода пароля"""
+    if check_cancel(message):
+        return
+        
     bot.send_message(message.chat.id, 
                     "*Введите пароль для доступа к командам преподавателя:*", 
                     parse_mode='Markdown')
@@ -47,20 +60,18 @@ def show_admin_commands(message):
 
 def check_admin_password(message):
     """Проверяет пароль и показывает админские команды"""
+    if check_cancel(message):
+        return
+        
     if message.text == ADMIN_PASSWORD:
-        admin_commands_text = """
+        admin_commands_text = f"""
 *Команды для преподавателей:*
 
 /upload - Загрузить новые тесты
 /delete - Удалить задачу  
 /comment - Добавить комментарий к тесту
 /delete_comment - Удалить комментарии
-
-*Как использовать:*
-• /upload - загрузите JSON файл с тестами
-• /delete - выберите задачу для удаления
-• /comment - добавьте пояснение к конкретному тесту
-• /delete_comment - управление комментариями
+/cancel - Отмена дейсвия
 """
         bot.send_message(message.chat.id, admin_commands_text, parse_mode='Markdown')
     else:
@@ -86,43 +97,142 @@ def start_upload(message):
     bot.send_message(message.chat.id, 
                     "*Введите пароль для доступа к загрузке тестов:*", 
                     parse_mode='Markdown')
-    bot.register_next_step_handler(message, check_password)
+    bot.register_next_step_handler(message, check_upload_password)
 
-def check_password(message):
-    """Проверка пароля"""
+def check_upload_password(message):
+    """Проверка пароля для загрузки"""
     if message.text == ADMIN_PASSWORD:
-        user_states[message.chat.id] = {'auth': True}
+        user_states[message.chat.id] = {'auth': True, 'action': 'upload'}
         bot.send_message(message.chat.id,
                         "*Доступ разрешен!*\n\n"
-                        "Отправьте JSON файл с тестами, соответствующий шаблону:\n"
-                        "```json\n"
-                        "{\n"
-                        '  "task_id": 0,\n'
-                        '  "task_name": "Название задачи",\n'
-                        '  "tests": {\n'
-                        '    "1": {\n'
-                        '      "input": "входные данные",\n'
-                        '      "output": "ожидаемый вывод"\n'
-                        '    },\n'
-                        '    "2": {\n'
-                        '      "input": "входные данные",\n'
-                        '      "output": "ожидаемый вывод"\n'
-                        '    }\n'
-                        '  }\n'
-                        "}\n"
-                        "```\n\n"
-                        "*Пояснения:*\n"
-                        "• task_id - номер задачи (число)\n"
-                        "• task_name - название задачи\n"
-                        "• tests - объект с тестами\n"
-                        "• Для переносов строк используйте \\\\n\n\n"
-                        "*Рекомендую использовать AI для конвертации файла*\n"
-                        "*Просто приложите этот шаблон к запросу*\n"
-                        "*Проверьте правильность task_id и task_name!*", 
+                        "*Выберите формат загрузки (отправьте цифру):*\n"
+                        "1. JSON-файл\n"
+                        "2. Текстовое сообщение",
                         parse_mode='Markdown')
+        bot.register_next_step_handler(message, choose_upload_format)
     else:
         bot.send_message(message.chat.id, "Неверный пароль!")
         user_states.pop(message.chat.id, None)
+
+def choose_upload_format(message):
+    """Выбор формата загрузки"""
+    if check_cancel(message):
+        return
+        
+    user_state = user_states.get(message.chat.id, {})
+    
+    if not user_state.get('auth'):
+        bot.send_message(message.chat.id, "Сессия устарела. Начните заново.")
+        user_states.pop(message.chat.id, None)
+        return
+    
+    choice = message.text.strip()
+    
+    if choice == '1':
+        bot.send_message(message.chat.id,
+                        "*Загрузка JSON-файлом*\n\n"
+                        "Отправьте JSON файл или введите " + CANCEL_COMMAND + " для отмены",
+                        parse_mode='Markdown')
+    elif choice == '2':
+        user_states[message.chat.id]['upload_format'] = 'text'
+        bot.send_message(message.chat.id,
+                        "*Загрузка текстовым сообщением*\n\n"
+                        f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
+                        parse_mode='Markdown')
+        bot.register_next_step_handler(message, get_task_id_for_text_upload)
+    else:
+        bot.send_message(message.chat.id, f"Неверный выбор! Введите 1, 2 или {CANCEL_COMMAND}")
+        bot.register_next_step_handler(message, choose_upload_format)
+
+def get_task_id_for_text_upload(message):
+    """Получение номера задачи для текстовой загрузки"""
+    if check_cancel(message):
+        return
+        
+    task_id = message.text.strip()
+    
+    try:
+        task_id_int = int(task_id)
+        user_states[message.chat.id]['task_id'] = task_id_int
+        
+        bot.send_message(message.chat.id,
+                        f"*Задача {task_id}!*\n\n"
+                        f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
+                        parse_mode='Markdown')
+        bot.register_next_step_handler(message, get_test_number_for_text_upload)
+        
+    except ValueError:
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.register_next_step_handler(message, get_task_id_for_text_upload)
+
+def get_test_number_for_text_upload(message):
+    """Получение номера теста для текстовой загрузки"""
+    if check_cancel(message):
+        return
+        
+    test_number = message.text.strip()
+    user_state = user_states.get(message.chat.id, {})
+    task_id = user_state.get('task_id')
+    
+    try:
+        test_number_int = int(test_number)
+        user_states[message.chat.id]['test_number'] = test_number_int
+        
+        bot.send_message(message.chat.id,
+                        f"*Тест {test_number}!*\n\n"
+                        f"*Введите входные данные или* {CANCEL_COMMAND} *для отмены:*",
+                        parse_mode='Markdown')
+        bot.register_next_step_handler(message, get_input_data_for_text_upload)
+        
+    except ValueError:
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.register_next_step_handler(message, get_test_number_for_text_upload)
+
+def get_input_data_for_text_upload(message):
+    """Получение входных данных для текстовой загрузки"""
+    if check_cancel(message):
+        return
+        
+    input_data = message.text.strip()
+    user_states[message.chat.id]['input_data'] = input_data
+    
+    bot.send_message(message.chat.id,
+                    "*Входные данные сохранены!*\n\n"
+                    f"*Введите ожидаемый вывод или* {CANCEL_COMMAND} *для отмены:*",
+                    parse_mode='Markdown')
+    bot.register_next_step_handler(message, get_output_data_for_text_upload)
+
+def get_output_data_for_text_upload(message):
+    """Получение выходных данных для текстовой загрузки"""
+    if check_cancel(message):
+        return
+        
+    output_data = message.text.strip()
+    user_state = user_states.get(message.chat.id, {})
+    
+    task_id = user_state.get('task_id')
+    test_number = user_state.get('test_number')
+    input_data = user_state.get('input_data')
+    
+    try:
+        json_data = {
+            "task_id": task_id,
+            "task_name": f"Задача {task_id}",
+            "tests": {
+                str(test_number): {
+                    "input": input_data,
+                    "output": output_data
+                }
+            }
+        }
+        
+        success, result_message = test_manager.load_from_json(json.dumps(json_data))
+        bot.send_message(message.chat.id, result_message)
+        
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ошибка загрузки: {str(e)}")
+    
+    user_states.pop(message.chat.id, None)
 
 
 @bot.message_handler(commands=['delete'])
@@ -156,6 +266,9 @@ def check_delete_password(message):
 
 def confirm_delete(message):
     """Подтверждение удаления задачи"""
+    if check_cancel(message):
+        return
+        
     task_id = message.text.strip()
     
     try:
@@ -175,9 +288,14 @@ def confirm_delete(message):
                        f"Задача: {task_id} - {task_name}\n\n"
                        f"*ВНИМАНИЕ:* Это действие нельзя отменить!\n\n"
                        f"Для подтверждения введите: ДА\n"
-                       f"Для отмены введите: НЕТ",
+                       f"Для отмены введите: НЕТ\n"
+                       f"Или введите {CANCEL_COMMAND} для выхода",
                        parse_mode='Markdown')
         bot.register_next_step_handler(message, execute_delete)
+        
+    except ValueError:
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.register_next_step_handler(message, confirm_delete)
         
     except ValueError:
         bot.send_message(message.chat.id, "Введите число!")
@@ -223,25 +341,46 @@ def check_comment_password(message):
     """Проверка пароля для комментариев"""
     if message.text == ADMIN_PASSWORD:
         user_states[message.chat.id] = {'auth': True, 'action': 'comment'}
-        
-        tasks = test_manager.get_available_tasks()
-        if tasks:
-            tasks_text = "\n".join([f"• {task}" for task in tasks])
-            bot.send_message(message.chat.id,
-                           f"*Доступ разрешен!*\n\n"
-                           f"*Текущие задачи:*\n\n{tasks_text}\n\n"
-                           f"*Введите номер задачи для комментария:*",
-                           parse_mode='Markdown')
-            bot.register_next_step_handler(message, get_task_for_comment)
-        else:
-            bot.send_message(message.chat.id, "Нет задач для комментирования.")
-            user_states.pop(message.chat.id, None)
+        bot.send_message(message.chat.id,
+                        "*Доступ разрешен!*\n\n"
+                        "*Введите ваше ФИО:*",
+                        parse_mode='Markdown')
+        bot.register_next_step_handler(message, get_teacher_name)
     else:
         bot.send_message(message.chat.id, "Неверный пароль!")
         user_states.pop(message.chat.id, None)
 
+def get_teacher_name(message):
+    """Получение ФИО преподавателя"""
+    if check_cancel(message):
+        return
+        
+    teacher_name = message.text.strip()
+    
+    if not teacher_name:
+        bot.send_message(message.chat.id, f"ФИО не может быть пустым! Введите ФИО или {CANCEL_COMMAND}")
+        bot.register_next_step_handler(message, get_teacher_name)
+        return
+    
+    user_states[message.chat.id]['teacher_name'] = teacher_name
+    
+    tasks = test_manager.get_available_tasks()
+    if tasks:
+        tasks_text = "\n".join([f"• {task}" for task in tasks])
+        bot.send_message(message.chat.id,
+                       f"*Текущие задачи:*\n\n{tasks_text}\n\n"
+                       f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
+                       parse_mode='Markdown')
+        bot.register_next_step_handler(message, get_task_for_comment)
+    else:
+        bot.send_message(message.chat.id, "Нет задач для комментирования.")
+        user_states.pop(message.chat.id, None)
+
 def get_task_for_comment(message):
     """Получение номера задачи для комментария"""
+    if check_cancel(message):
+        return
+        
     task_id = message.text.strip()
     
     try:
@@ -260,7 +399,7 @@ def get_task_for_comment(message):
             bot.send_message(message.chat.id,
                            f"*Задача {task_id}!*\n"
                            f"Доступные тесты: {tests_info}\n\n"
-                           f"*Введите номер теста для комментария:*",
+                           f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
                            parse_mode='Markdown')
             bot.register_next_step_handler(message, get_test_for_comment)
         else:
@@ -268,11 +407,14 @@ def get_task_for_comment(message):
             user_states.pop(message.chat.id, None)
             
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, get_task_for_comment)
 
 def get_test_for_comment(message):
     """Получение номера теста для комментария"""
+    if check_cancel(message):
+        return
+        
     test_number = message.text.strip()
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
@@ -289,36 +431,40 @@ def get_test_for_comment(message):
         
         current_comments = test_manager.get_comments(task_id, test_number_int)
         if current_comments:
-            comments_text = "\n".join([f"{c['text']}" for c in current_comments])
+            comments_text = "\n".join([f"*{c['author']}:* {c['text']}" for c in current_comments])
             bot.send_message(message.chat.id,
                            f"*Текущие комментарии к тесту {test_number}:*\n\n{comments_text}\n\n"
-                           f"*Введите новый комментарий:*",
+                           f"*Введите новый комментарий или* {CANCEL_COMMAND} *для отмены:*",
                            parse_mode='Markdown')
         else:
             bot.send_message(message.chat.id,
                            f"*Комментариев к тесту {test_number} пока нет.*\n\n"
-                           f"*Введите новый комментарий:*",
+                           f"*Введите новый комментарий или* {CANCEL_COMMAND} *для отмены:*",
                            parse_mode='Markdown')
         
         bot.register_next_step_handler(message, save_comment)
         
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, get_test_for_comment)
 
 def save_comment(message):
     """Сохранение комментария"""
+    if check_cancel(message):
+        return
+        
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
     test_number = user_state.get('test_number')
+    teacher_name = user_state.get('teacher_name')
     comment_text = message.text.strip()
     
     if not comment_text:
-        bot.send_message(message.chat.id, "Комментарий не может быть пустым.")
-        user_states.pop(message.chat.id, None)
+        bot.send_message(message.chat.id, f"Комментарий не может быть пустым! Введите комментарий или {CANCEL_COMMAND}")
+        bot.register_next_step_handler(message, save_comment)
         return
     
-    success, result_message = test_manager.add_comment(task_id, test_number, comment_text)
+    success, result_message = test_manager.add_comment(task_id, test_number, comment_text, teacher_name)
     bot.send_message(message.chat.id, result_message)
     
     user_states.pop(message.chat.id, None)
@@ -327,6 +473,9 @@ def save_comment(message):
 @bot.message_handler(commands=['delete_comment'])
 def start_delete_comment(message):
     """Начало удаления комментариев"""
+    if check_cancel(message):
+        return
+        
     bot.send_message(message.chat.id, 
                     "*Введите пароль для управления комментариями:*", 
                     parse_mode='Markdown')
@@ -334,16 +483,20 @@ def start_delete_comment(message):
 
 def check_delete_comment_password(message):
     """Проверка пароля для удаления комментариев"""
+    if check_cancel(message):
+        return
+        
     if message.text == ADMIN_PASSWORD:
         user_states[message.chat.id] = {'auth': True, 'action': 'delete_comment'}
         
+        # Показываем список задач
         tasks = test_manager.get_available_tasks()
         if tasks:
             tasks_text = "\n".join([f"• {task}" for task in tasks])
             bot.send_message(message.chat.id,
                            f"*Доступ разрешен!*\n\n"
                            f"*Текущие задачи:*\n\n{tasks_text}\n\n"
-                           f"*Введите номер задачи:*",
+                           f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
                            parse_mode='Markdown')
             bot.register_next_step_handler(message, get_task_for_comment_delete)
         else:
@@ -355,6 +508,9 @@ def check_delete_comment_password(message):
 
 def get_task_for_comment_delete(message):
     """Получение номера задачи для удаления комментариев"""
+    if check_cancel(message):
+        return
+        
     task_id = message.text.strip()
     
     try:
@@ -367,13 +523,14 @@ def get_task_for_comment_delete(message):
         
         user_states[message.chat.id]['task_id'] = task_id_int
         
+        # Показываем доступные тесты для этой задачи
         available_tests = test_manager.get_available_tests(task_id_int)
         if available_tests:
             tests_info = ", ".join(available_tests)
             bot.send_message(message.chat.id,
                            f"*Задача {task_id}!*\n"
                            f"Доступные тесты: {tests_info}\n\n"
-                           f"*Введите номер теста:*",
+                           f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
                            parse_mode='Markdown')
             bot.register_next_step_handler(message, show_comments_for_deletion)
         else:
@@ -381,11 +538,14 @@ def get_task_for_comment_delete(message):
             user_states.pop(message.chat.id, None)
             
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, get_task_for_comment_delete)
 
 def show_comments_for_deletion(message):
     """Показывает комментарии для удаления"""
+    if check_cancel(message):
+        return
+        
     test_number = message.text.strip()
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
@@ -393,6 +553,7 @@ def show_comments_for_deletion(message):
     try:
         test_number_int = int(test_number)
         
+        # Получаем комментарии с ID
         comments = test_manager.get_comments_with_ids(task_id, test_number_int)
         
         if not comments:
@@ -403,25 +564,31 @@ def show_comments_for_deletion(message):
         
         user_states[message.chat.id]['test_number'] = test_number_int
         
+        # Формируем список комментариев с номерами
         comments_text = ""
         for i, comment in enumerate(comments, 1):
-            comments_text += f"{i}. {comment['text']} (ID: {comment['id']})\n"
+            comment_preview = comment['text'][:50] + "..." if len(comment['text']) > 50 else comment['text']
+            comments_text += f"{i}. {comment_preview}\n"
         
         bot.send_message(message.chat.id,
                        f"*Комментарии к задаче {task_id}, тест {test_number}:*\n\n{comments_text}\n\n"
                        f"*Выберите действие:*\n"
                        f"• Введите номер комментария для удаления (1, 2, 3...)\n"
                        f"• Введите 'ALL' чтобы удалить все комментарии\n"
-                       f"• Введите 'CANCEL' для отмены",
+                       f"• Введите 'CANCEL' для отмены\n"
+                       f"• Или введите {CANCEL_COMMAND} для выхода",
                        parse_mode='Markdown')
         bot.register_next_step_handler(message, handle_comment_deletion)
         
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, show_comments_for_deletion)
 
 def handle_comment_deletion(message):
     """Обработка выбора удаления комментариев"""
+    if check_cancel(message):
+        return
+        
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
     test_number = user_state.get('test_number')
@@ -433,12 +600,14 @@ def handle_comment_deletion(message):
         return
     
     elif user_choice == 'ALL':
+        # Удаляем все комментарии
         success, result_message = test_manager.delete_all_comments(task_id, test_number)
         bot.send_message(message.chat.id, result_message)
         user_states.pop(message.chat.id, None)
         return
     
     else:
+        # Удаляем конкретный комментарий
         try:
             comments = test_manager.get_comments_with_ids(task_id, test_number)
             comment_index = int(user_choice) - 1
@@ -448,12 +617,12 @@ def handle_comment_deletion(message):
                 success, result_message = test_manager.delete_comment(comment_id)
                 bot.send_message(message.chat.id, result_message)
             else:
-                bot.send_message(message.chat.id, "Неверный номер комментария.")
+                bot.send_message(message.chat.id, f"Неверный номер комментария! Введите число от 1 до {len(comments)} или {CANCEL_COMMAND}")
                 bot.register_next_step_handler(message, handle_comment_deletion)
                 return
                 
         except ValueError:
-            bot.send_message(message.chat.id, "Введите число, 'ALL' или 'CANCEL'")
+            bot.send_message(message.chat.id, f"Введите число, 'ALL', 'CANCEL' или {CANCEL_COMMAND}")
             bot.register_next_step_handler(message, handle_comment_deletion)
             return
     
@@ -492,6 +661,9 @@ def handle_document(message):
 @bot.message_handler(commands=['help'])
 def start_help(message):
     """Начало процесса получения помощи"""
+    if check_cancel(message):
+        return
+        
     tasks = test_manager.get_available_tasks()
     if not tasks:
         bot.send_message(message.chat.id, "Нет доступных задач.")
@@ -501,14 +673,18 @@ def start_help(message):
     
     bot.send_message(message.chat.id,
                     f"*Доступные задачи:*\n\n{tasks_text}\n\n"
-                    f"*Введите номер задачи:*", 
+                    f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*", 
                     parse_mode='Markdown')
     bot.register_next_step_handler(message, get_task_number)
 
 def get_task_number(message):
     """Обработка номера задачи"""
+    if check_cancel(message):
+        return
+        
     task_number = message.text.strip()
     
+    # Проверяем существование задачи
     try:
         task_id = int(task_number)
         if not test_manager.task_exists(task_id):
@@ -518,39 +694,44 @@ def get_task_number(message):
             bot.send_message(message.chat.id,
                            f"Задача {task_number} не найдена.\n\n"
                            f"*Доступные задачи:*\n\n{tasks_text}\n\n"
-                           f"Введите номер задачи из списка:",
+                           f"Введите номер задачи из списка или {CANCEL_COMMAND} для отмены:",
                            parse_mode='Markdown')
             bot.register_next_step_handler(message, get_task_number)
             return
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, get_task_number)
         return
     
+    # Получаем доступные тесты
     available_tests = test_manager.get_available_tests(task_id)
     if available_tests:
         tests_info = ", ".join(available_tests)
         bot.send_message(message.chat.id,
                        f"*Задача {task_number}!*\n"
                        f"Доступные тесты: {tests_info}\n\n"
-                       f"*Введите номер теста:*",
+                       f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
                        parse_mode='Markdown')
     else:
         bot.send_message(message.chat.id,
                        f"*Задача {task_number}!*\n\n"
-                       f"*Введите номер теста:*",
+                       f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
                        parse_mode='Markdown')
     
     bot.register_next_step_handler(message, lambda msg: get_test_number(msg, task_id))
 
 def get_test_number(message, task_id):
     """Обработка номера теста"""
+    if check_cancel(message):
+        return
+        
     test_number = message.text.strip()
     
     try:
         test_data = test_manager.get_test_data(task_id, int(test_number))
         
         if test_data:
+            # Формируем базовый ответ
             response = f"""
 *Тест найден!*
 
@@ -561,14 +742,22 @@ def get_test_number(message, task_id):
 
 {test_data['input']}
 
+
 *Ожидаемый вывод:*
 
 {test_data['output']}
 
 """
-            if test_data.get('comments'):
-                comments_text = "\n".join([f"*{c['author']}:* {c['text']}" for c in test_data['comments']])
-                response += f"\n*Комментарии:*\n{comments_text}"
+            # Пытаемся получить комментарии
+            try:
+                if hasattr(test_manager, 'get_comments'):
+                    comments = test_manager.get_comments(task_id, int(test_number))
+                    if comments:
+                        comments_text = "\n".join([f"*{c['author']}:* {c['text']}" for c in comments])
+                        response += f"\n*Комментарии:*\n{comments_text}"
+            except Exception as e:
+                # Игнорируем ошибки с комментариями
+                print(f"Ошибка при получении комментариев: {e}")
             
             response += "\n\nДля нового запроса используйте /help"
             
@@ -584,7 +773,7 @@ def get_test_number(message, task_id):
 
 *Доступные тесты:* {tests_info}
 
-Проверьте правильность номера теста.
+Проверьте правильность номера теста или введите {CANCEL_COMMAND} для отмены.
 """
             else:
                 response = f"Тест {test_number} для задачи {task_id} не найден."
@@ -592,29 +781,10 @@ def get_test_number(message, task_id):
         bot.send_message(message.chat.id, response, parse_mode='Markdown')
         
     except ValueError:
-        bot.send_message(message.chat.id, "Введите число для номера теста!")
+        bot.send_message(message.chat.id, f"Введите число для номера теста или {CANCEL_COMMAND} для отмены!")
         bot.register_next_step_handler(message, lambda msg: get_test_number(msg, task_id))
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {str(e)}")
-
-
-@bot.message_handler(commands=['info'])
-def send_info(message):
-    info_text = """
-*Информация о боте*
-
-*Назначение:* Помощь с учебными задачами и тестами
-*Разработчик:* Обельчак Вячеслав Андреевич
-*Версия:* 2.0
-
-*Новые возможности:*
-• Загрузка тестов через бота
-• База данных задач
-• Удобный поиск
-
-Для получения помощи используйте /help
-    """
-    bot.send_message(message.chat.id, info_text, parse_mode='Markdown')
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):

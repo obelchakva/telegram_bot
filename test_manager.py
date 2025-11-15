@@ -81,17 +81,17 @@ class TestManager:
             conn.commit()
             conn.close()
             
-            return True, f"✅ Задача {task_id} успешно загружена! Добавлено {len(data['tests'])} тестов."
+            return True, f"Задача {task_id} успешно загружена! Добавлено {len(data['tests'])} тестов."
             
         except Exception as e:
-            return False, f"❌ Ошибка загрузки: {str(e)}"
+            return False, f"Ошибка загрузки: {str(e)}"
     
     def add_comment(self, task_id, test_number, comment_text, author="Преподаватель"):
         """Добавляет комментарий к тесту"""
         try:
             # Проверяем существование теста
             if not self.get_test_data(task_id, test_number):
-                return False, f"❌ Тест {test_number} для задачи {task_id} не найден"
+                return False, f"Тест {test_number} для задачи {task_id} не найден"
             
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -104,10 +104,10 @@ class TestManager:
             conn.commit()
             conn.close()
             
-            return True, f"✅ Комментарий добавлен к задаче {task_id}, тест {test_number}"
+            return True, f"Комментарий добавлен к задаче {task_id}, тест {test_number}"
             
         except Exception as e:
-            return False, f"❌ Ошибка добавления комментария: {str(e)}"
+            return False, f"Ошибка добавления комментария: {str(e)}"
 
     def get_comments(self, task_id, test_number):
         """Получает все комментарии для теста"""
@@ -171,7 +171,7 @@ class TestManager:
             
             comment_info = cursor.fetchone()
             if not comment_info:
-                return False, "❌ Комментарий не найден"
+                return False, "Комментарий не найден"
             
             task_id, test_number, comment_text = comment_info
             
@@ -180,10 +180,10 @@ class TestManager:
             conn.commit()
             conn.close()
             
-            return True, f"✅ Комментарий удален (Задача {task_id}, тест {test_number})"
+            return True, f"Комментарий удален (Задача {task_id}, тест {test_number})"
             
         except Exception as e:
-            return False, f"❌ Ошибка удаления комментария: {str(e)}"
+            return False, f"Ошибка удаления комментария: {str(e)}"
 
     def delete_all_comments(self, task_id, test_number):
         """Удаляет все комментарии для теста"""
@@ -200,10 +200,10 @@ class TestManager:
             conn.commit()
             conn.close()
             
-            return True, f"✅ Удалено комментариев: {deleted_count} (Задача {task_id}, тест {test_number})"
+            return True, f"Удалено комментариев: {deleted_count} (Задача {task_id}, тест {test_number})"
             
         except Exception as e:
-            return False, f"❌ Ошибка удаления комментариев: {str(e)}"
+            return False, f"Ошибка удаления комментариев: {str(e)}"
 
     def get_test_data(self, task_id, test_number):
         """Получение данных теста с комментариями"""
@@ -307,12 +307,12 @@ class TestManager:
             conn.close()
             
             if task_deleted > 0:
-                return True, f"✅ Задача {task_id} - '{task_name}' удалена!\nУдалено тестов: {tests_deleted}"
+                return True, f"Задача {task_id} - '{task_name}' удалена!\nУдалено тестов: {tests_deleted}"
             else:
-                return False, f"❌ Задача {task_id} не найдена."
+                return False, f"Задача {task_id} не найдена."
                 
         except Exception as e:
-            return False, f"❌ Ошибка при удалении: {str(e)}"
+            return False, f"Ошибка при удалении: {str(e)}"
 
     def get_task_stats(self, task_id):
         """Получает статистику по задаче"""
