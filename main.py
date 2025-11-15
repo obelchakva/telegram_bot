@@ -1,13 +1,13 @@
 import telebot
 import os
 import json
-from test_manager import TestManager
+from task_manager import TaskManager
 
 # Конфигурация
 ADMIN_PASSWORD = "101003"  # Пароль для загрузки
 CANCEL_COMMAND = "/cancel"
 bot = telebot.TeleBot('7722825450:AAHKyoLykpV63lmZisNIargwPh5qQXqFlTg')
-test_manager = TestManager()
+task_manager = TaskManager()
 
 bot.set_my_commands([
     telebot.types.BotCommand("start", "Начало работы"),
@@ -81,7 +81,7 @@ def check_admin_password(message):
 @bot.message_handler(commands=['tasks'])
 def show_tasks(message):
     """Показать список доступных задач"""
-    tasks = test_manager.get_available_tasks()
+    tasks = task_manager.get_available_tasks()
     if tasks:
         tasks_text = "\n".join([f"• {task}" for task in tasks])
         response = f"*Доступные задачи:*\n\n{tasks_text}"
@@ -226,7 +226,7 @@ def get_output_data_for_text_upload(message):
             }
         }
         
-        success, result_message = test_manager.load_from_json(json.dumps(json_data))
+        success, result_message = task_manager.load_from_json(json.dumps(json_data))
         bot.send_message(message.chat.id, result_message)
         
     except Exception as e:
@@ -248,7 +248,7 @@ def check_delete_password(message):
     if message.text == ADMIN_PASSWORD:
         user_states[message.chat.id] = {'auth': True, 'action': 'delete'}
         
-        tasks = test_manager.get_available_tasks()
+        tasks = task_manager.get_available_tasks()
         if tasks:
             tasks_text = "\n".join([f"• {task}" for task in tasks])
             bot.send_message(message.chat.id,
@@ -274,12 +274,12 @@ def confirm_delete(message):
     try:
         task_id_int = int(task_id)
         
-        if not test_manager.task_exists(task_id_int):
+        if not task_manager.task_exists(task_id_int):
             bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
             user_states.pop(message.chat.id, None)
             return
         
-        task_name = test_manager.get_task_name(task_id_int)
+        task_name = task_manager.get_task_name(task_id_int)
         
         user_states[message.chat.id]['task_to_delete'] = task_id_int
         
@@ -316,7 +316,7 @@ def execute_delete(message):
     
     if message.text.upper() == 'ДА':
         try:
-            success, message_text = test_manager.delete_task(task_id)
+            success, message_text = task_manager.delete_task(task_id)
             bot.send_message(message.chat.id, message_text)
         except Exception as e:
             bot.send_message(message.chat.id, f"Ошибка удаления: {str(e)}")
@@ -364,7 +364,7 @@ def get_teacher_name(message):
     
     user_states[message.chat.id]['teacher_name'] = teacher_name
     
-    tasks = test_manager.get_available_tasks()
+    tasks = task_manager.get_available_tasks()
     if tasks:
         tasks_text = "\n".join([f"• {task}" for task in tasks])
         bot.send_message(message.chat.id,
@@ -386,14 +386,14 @@ def get_task_for_comment(message):
     try:
         task_id_int = int(task_id)
         
-        if not test_manager.task_exists(task_id_int):
+        if not task_manager.task_exists(task_id_int):
             bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
             user_states.pop(message.chat.id, None)
             return
         
         user_states[message.chat.id]['task_id'] = task_id_int
         
-        available_tests = test_manager.get_available_tests(task_id_int)
+        available_tests = task_manager.get_available_tests(task_id_int)
         if available_tests:
             tests_info = ", ".join(available_tests)
             bot.send_message(message.chat.id,
@@ -422,14 +422,14 @@ def get_test_for_comment(message):
     try:
         test_number_int = int(test_number)
         
-        if not test_manager.get_test_data(task_id, test_number_int):
+        if not task_manager.get_test_data(task_id, test_number_int):
             bot.send_message(message.chat.id, f"Тест {test_number} для задачи {task_id} не найден.")
             user_states.pop(message.chat.id, None)
             return
         
         user_states[message.chat.id]['test_number'] = test_number_int
         
-        current_comments = test_manager.get_comments(task_id, test_number_int)
+        current_comments = task_manager.get_comments(task_id, test_number_int)
         if current_comments:
             comments_text = "\n".join([f"*{c['author']}:* {c['text']}" for c in current_comments])
             bot.send_message(message.chat.id,
@@ -464,7 +464,7 @@ def save_comment(message):
         bot.register_next_step_handler(message, save_comment)
         return
     
-    success, result_message = test_manager.add_comment(task_id, test_number, comment_text, teacher_name)
+    success, result_message = task_manager.add_comment(task_id, test_number, comment_text, teacher_name)
     bot.send_message(message.chat.id, result_message)
     
     user_states.pop(message.chat.id, None)
@@ -490,7 +490,7 @@ def check_delete_comment_password(message):
         user_states[message.chat.id] = {'auth': True, 'action': 'delete_comment'}
         
         # Показываем список задач
-        tasks = test_manager.get_available_tasks()
+        tasks = task_manager.get_available_tasks()
         if tasks:
             tasks_text = "\n".join([f"• {task}" for task in tasks])
             bot.send_message(message.chat.id,
@@ -516,7 +516,7 @@ def get_task_for_comment_delete(message):
     try:
         task_id_int = int(task_id)
         
-        if not test_manager.task_exists(task_id_int):
+        if not task_manager.task_exists(task_id_int):
             bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
             user_states.pop(message.chat.id, None)
             return
@@ -524,7 +524,7 @@ def get_task_for_comment_delete(message):
         user_states[message.chat.id]['task_id'] = task_id_int
         
         # Показываем доступные тесты для этой задачи
-        available_tests = test_manager.get_available_tests(task_id_int)
+        available_tests = task_manager.get_available_tests(task_id_int)
         if available_tests:
             tests_info = ", ".join(available_tests)
             bot.send_message(message.chat.id,
@@ -554,7 +554,7 @@ def show_comments_for_deletion(message):
         test_number_int = int(test_number)
         
         # Получаем комментарии с ID
-        comments = test_manager.get_comments_with_ids(task_id, test_number_int)
+        comments = task_manager.get_comments_with_ids(task_id, test_number_int)
         
         if not comments:
             bot.send_message(message.chat.id, 
@@ -601,7 +601,7 @@ def handle_comment_deletion(message):
     
     elif user_choice == 'ALL':
         # Удаляем все комментарии
-        success, result_message = test_manager.delete_all_comments(task_id, test_number)
+        success, result_message = task_manager.delete_all_comments(task_id, test_number)
         bot.send_message(message.chat.id, result_message)
         user_states.pop(message.chat.id, None)
         return
@@ -609,12 +609,12 @@ def handle_comment_deletion(message):
     else:
         # Удаляем конкретный комментарий
         try:
-            comments = test_manager.get_comments_with_ids(task_id, test_number)
+            comments = task_manager.get_comments_with_ids(task_id, test_number)
             comment_index = int(user_choice) - 1
             
             if 0 <= comment_index < len(comments):
                 comment_id = comments[comment_index]['id']
-                success, result_message = test_manager.delete_comment(comment_id)
+                success, result_message = task_manager.delete_comment(comment_id)
                 bot.send_message(message.chat.id, result_message)
             else:
                 bot.send_message(message.chat.id, f"Неверный номер комментария! Введите число от 1 до {len(comments)} или {CANCEL_COMMAND}")
@@ -648,7 +648,7 @@ def handle_document(message):
         
         json_content = downloaded_file.decode('utf-8')
         
-        success, result_message = test_manager.load_from_json(json_content)
+        success, result_message = task_manager.load_from_json(json_content)
         
         bot.send_message(message.chat.id, result_message)
         
@@ -664,7 +664,7 @@ def start_help(message):
     if check_cancel(message):
         return
         
-    tasks = test_manager.get_available_tasks()
+    tasks = task_manager.get_available_tasks()
     if not tasks:
         bot.send_message(message.chat.id, "Нет доступных задач.")
         return
@@ -687,8 +687,8 @@ def get_task_number(message):
     # Проверяем существование задачи
     try:
         task_id = int(task_number)
-        if not test_manager.task_exists(task_id):
-            available_tasks = test_manager.get_available_tasks()
+        if not task_manager.task_exists(task_id):
+            available_tasks = task_manager.get_available_tasks()
             tasks_text = "\n".join([f"• {task}" for task in available_tasks])
             
             bot.send_message(message.chat.id,
@@ -704,7 +704,7 @@ def get_task_number(message):
         return
     
     # Получаем доступные тесты
-    available_tests = test_manager.get_available_tests(task_id)
+    available_tests = task_manager.get_available_tests(task_id)
     if available_tests:
         tests_info = ", ".join(available_tests)
         bot.send_message(message.chat.id,
@@ -721,17 +721,16 @@ def get_task_number(message):
     bot.register_next_step_handler(message, lambda msg: get_test_number(msg, task_id))
 
 def get_test_number(message, task_id):
-    """Обработка номера теста"""
     if check_cancel(message):
         return
         
     test_number = message.text.strip()
     
     try:
-        test_data = test_manager.get_test_data(task_id, int(test_number))
+        test_data = task_manager.get_test_data(task_id, int(test_number))
         
         if test_data:
-            # Формируем базовый ответ
+            # Формируем базовый ответ для найденного теста
             response = f"""
 *Тест найден!*
 
@@ -750,8 +749,8 @@ def get_test_number(message, task_id):
 """
             # Пытаемся получить комментарии
             try:
-                if hasattr(test_manager, 'get_comments'):
-                    comments = test_manager.get_comments(task_id, int(test_number))
+                if hasattr(task_manager, 'get_comments'):
+                    comments = task_manager.get_comments(task_id, int(test_number))
                     if comments:
                         comments_text = "\n".join([f"*{c['author']}:* {c['text']}" for c in comments])
                         response += f"\n*Комментарии:*\n{comments_text}"
@@ -762,7 +761,9 @@ def get_test_number(message, task_id):
             response += "\n\nДля нового запроса используйте /help"
             
         else:
-            available_tests = test_manager.get_available_tests(task_id)
+            # Код для ненайденного теста
+            print("DEBUG: Зашли в блок else - тест не найден")
+            available_tests = task_manager.get_available_tests(task_id)
             if available_tests:
                 tests_info = ", ".join(available_tests)
                 response = f"""

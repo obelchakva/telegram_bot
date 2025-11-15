@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 
-class TestManager:
+class TaskManager:
     def __init__(self, db_path='tests.db'):
         self.db_path = db_path
         self.init_database()
