@@ -26,14 +26,13 @@ class TestBotHandlers:
         text = get_mock_text(mock_bot.send_message.call_args)
         assert "Бот помощи с задачами" in text
     
-    @patch('main.bot')  # ДОБАВЬТЕ ЭТОТ ДЕКОРАТОР
+    @patch('main.bot')
     def test_check_cancel_true(self, mock_bot, mock_message):
         """Тест проверки отмены - True"""
         mock_message.text = "/cancel"
         result = main.check_cancel(mock_message)
         assert result is True
         
-        # Проверяем, что сообщение об отмене отправлено
         mock_bot.send_message.assert_called_once()
         text = get_mock_text(mock_bot.send_message.call_args)
         assert "Действие отменено" in text
@@ -49,7 +48,6 @@ class TestBotHandlers:
         """Тест команды /tasks"""
         main.task_manager = task_manager
         
-        # Сначала добавляем тестовую задачу
         json_data = {
             "task_id": 1,
             "task_name": "Тестовая задача",

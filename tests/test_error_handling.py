@@ -16,13 +16,9 @@ class TestErrorHandling:
         
         mock_message.text = "1"
         
-        # Должен обработать ошибку и отправить сообщение
         main.get_test_number(mock_message, 1)
         
         mock_bot.send_message.assert_called_once()
-        # ЗАМЕНИТЕ эту строку:
-        # assert "Ошибка" in kwargs['text']
-        # НА ЭТУ:
         text = get_mock_text(mock_bot.send_message.call_args)
         assert "Ошибка" in text
     
@@ -32,7 +28,6 @@ class TestErrorHandling:
         """Тест обработки ошибок при получении комментариев"""
         main.bot = mock_bot
         
-        # Нужно исправить mock чтобы он возвращал реальные строки, а не MagicMock
         mock_test_data = {
             'input': "test",
             'output': "result", 
@@ -40,7 +35,6 @@ class TestErrorHandling:
             'comments': []
         }
         
-        # Используйте side_effect или return_value с реальными значениями
         def get_test_data_side_effect(task_id, test_number):
             return mock_test_data
             
@@ -49,13 +43,10 @@ class TestErrorHandling:
         
         mock_message.text = "1"
         
-        # Должен продолжить работу даже при ошибке комментариев
         main.get_test_number(mock_message, 1)
         
         mock_bot.send_message.assert_called_once()
         text = get_mock_text(mock_bot.send_message.call_args)
         
-        # Проверяем что сообщение отправлено (даже если данные не те)
         assert mock_bot.send_message.called
-        # Или проверяем более общее условие
         assert "Тест найден" in text or "test" in text or "result" in text

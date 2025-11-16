@@ -18,7 +18,6 @@ class TestFileHandling:
         message.document = Mock()
         message.document.file_name = "tests.json"
         
-        # Мокаем загрузку файла
         mock_file_info = Mock()
         mock_file_info.file_path = "test/path"
         mock_bot.get_file.return_value = mock_file_info
@@ -39,7 +38,7 @@ class TestFileHandling:
         
         message = Mock()
         message.chat.id = 12345
-        message.document.file_name = "tests.txt"  # Не JSON
+        message.document.file_name = "tests.txt"  
         
         main.handle_document(message)
         
@@ -48,7 +47,7 @@ class TestFileHandling:
     def test_document_handling_unauthorized(self, mock_bot):
         """Тест обработки файлов без авторизации"""
         main.bot = mock_bot
-        main.user_states = {}  # Нет авторизации
+        main.user_states = {}  
         
         message = Mock()
         message.chat.id = 12345

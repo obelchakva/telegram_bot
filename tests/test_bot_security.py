@@ -6,33 +6,31 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import main
-from .test_fixes import get_mock_text  # Добавьте этот импорт
+from .test_fixes import get_mock_text 
 
 
 class TestBotSecurity:
     """Тесты безопасности и валидации"""
     
-    @patch('main.bot')  # ДОБАВЬТЕ ЭТОТ ДЕКОРАТОР
+    @patch('main.bot')
     def test_password_validation(self, mock_bot):
         """Тест валидации пароля"""
-        # Правильный пароль
         message = Mock()
         message.text = "101003"
         result = main.check_admin_password(message)
         
-        # Неправильный пароль
         message.text = "wrong"
         result = main.check_admin_password(message)
     
     def test_input_validation_task_id(self):
         """Тест валидации ввода номера задачи"""
         test_cases = [
-            ("123", True),      # Валидный номер
-            ("1", True),        # Валидный номер  
-            ("abc", False),     # Невалидный - буквы
-            ("12.3", False),    # Невалидный - дробное
-            ("", False),        # Невалидный - пустой
-            ("-5", False),      # Невалидный - отрицательный
+            ("123", True),      
+            ("1", True),          
+            ("abc", False),      
+            ("12.3", False),     
+            ("", False),         
+            ("-5", False),       
         ]
         
         for input_text, expected_valid in test_cases:
@@ -51,14 +49,9 @@ class TestBotSecurity:
         main.bot = mock_bot
         mock_task_manager.task_exists.return_value = False
         
-        # Пытаемся передать SQL-инъекцию
         mock_message.text = "1; DROP TABLE tasks;--"
         main.get_task_number(mock_message)
         
-        # Должна быть обработана как невалидный ввод
         mock_bot.send_message.assert_called_once()
         text = get_mock_text(mock_bot.send_message.call_args)
-        # ИСПРАВЬТЕ ЭТУ СТРОКУ:
-        # assert "не найдена" in text
-        # НА:
         assert "Введите число" in text or "не найдена" in text or "неверный" in text.lower()

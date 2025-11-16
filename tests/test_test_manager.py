@@ -10,11 +10,9 @@ class TestTaskManager:
     
     def test_init_database(self, task_manager, temp_db):
         """Тест инициализации базы данных"""
-        # Проверяем, что таблицы созданы
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
         
-        # Проверяем существование таблиц
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
         
@@ -32,7 +30,6 @@ class TestTaskManager:
         assert success is True
         assert "успешно загружена" in message
         
-        # Проверяем, что данные действительно добавлены
         stats = task_manager.get_task_stats(1)
         assert stats is not None
         assert stats['test_count'] == 2
@@ -46,14 +43,13 @@ class TestTaskManager:
     
     def test_load_from_json_missing_fields(self, task_manager):
         """Тест загрузки JSON с отсутствующими полями"""
-        invalid_data = {"task_id": 1}  # Нет tests
+        invalid_data = {"task_id": 1}
         success, message = task_manager.load_from_json(json.dumps(invalid_data))
         
         assert success is False
     
     def test_add_comment_success(self, task_manager, sample_json_data):
         """Тест успешного добавления комментария"""
-        # Сначала загружаем тестовые данные
         task_manager.load_from_json(json.dumps(sample_json_data))
         
         success, message = task_manager.add_comment(1, 1, "Отличный тест!", "Преподаватель")
@@ -61,7 +57,6 @@ class TestTaskManager:
         assert success is True
         assert "Комментарий добавлен" in message
         
-        # Проверяем, что комментарий действительно добавлен
         comments = task_manager.get_comments(1, 1)
         assert len(comments) == 1
         assert comments[0]['text'] == "Отличный тест!"
@@ -91,7 +86,6 @@ class TestTaskManager:
         task_manager.load_from_json(json.dumps(sample_json_data))
         task_manager.add_comment(1, 1, "Комментарий для удаления")
         
-        # Получаем ID комментария
         comments = task_manager.get_comments_with_ids(1, 1)
         comment_id = comments[0]['id']
         
@@ -100,7 +94,6 @@ class TestTaskManager:
         assert success is True
         assert "Комментарий удален" in message
         
-        # Проверяем, что комментарий удален
         comments_after = task_manager.get_comments(1, 1)
         assert len(comments_after) == 0
     
@@ -177,7 +170,6 @@ class TestTaskManager:
         task_name = task_manager.get_task_name(1)
         assert task_name == "Тестовая задача"
         
-        # Для несуществующей задачи
         task_name_nonexistent = task_manager.get_task_name(999)
         assert "Задача 999" in task_name_nonexistent
     

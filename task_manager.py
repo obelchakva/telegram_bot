@@ -7,11 +7,13 @@ class TaskManager:
         self.db_path = db_path
         self.init_database()
     
+
     def init_database(self):
         """Инициализация базы данных"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Таблица для задач
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id INTEGER PRIMARY KEY,
@@ -20,6 +22,7 @@ class TaskManager:
             )
         ''')
         
+        # Таблица для тестов
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tests (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +35,7 @@ class TaskManager:
             )
         ''')
 
+        #Таблица для комментариев
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS comments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +54,7 @@ class TaskManager:
         conn.commit()
         conn.close()
     
+
     def load_from_json(self, json_content, task_id=None):
         """Загрузка тестов из JSON"""
         try:
@@ -86,8 +91,9 @@ class TaskManager:
         except Exception as e:
             return False, f"Ошибка загрузки: {str(e)}"
     
+
     def add_comment(self, task_id, test_number, comment_text, author="Преподаватель"):
-        """Добавляет комментарий к тесту"""
+        """Добавляем комментарий к тесту"""
         try:
             # Проверяем существование теста
             if not self.get_test_data(task_id, test_number):
@@ -96,6 +102,7 @@ class TaskManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Добавляем комментарий
             cursor.execute('''
                 INSERT INTO comments (task_id, test_number, comment_text, author)
                 VALUES (?, ?, ?, ?)
@@ -109,8 +116,9 @@ class TaskManager:
         except Exception as e:
             return False, f"Ошибка добавления комментария: {str(e)}"
 
+
     def get_comments(self, task_id, test_number):
-        """Получает все комментарии для теста"""
+        """Получаем все комментарии для теста"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -132,8 +140,9 @@ class TaskManager:
         conn.close()
         return comments
     
+
     def get_comments_with_ids(self, task_id, test_number):
-        """Получает все комментарии для теста с их ID"""
+        """Получаем все комментарии для теста с их ID"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -156,8 +165,9 @@ class TaskManager:
         conn.close()
         return comments
 
+
     def delete_comment(self, comment_id):
-        """Удаляет комментарий по ID"""
+        """Удаляем комментарий по ID"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -185,8 +195,9 @@ class TaskManager:
         except Exception as e:
             return False, f"Ошибка удаления комментария: {str(e)}"
 
+
     def delete_all_comments(self, task_id, test_number):
-        """Удаляет все комментарии для теста"""
+        """Удаляем все комментарии для теста"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -205,8 +216,9 @@ class TaskManager:
         except Exception as e:
             return False, f"Ошибка удаления комментариев: {str(e)}"
 
+
     def get_test_data(self, task_id, test_number):
-        """Получение данных теста с комментариями"""
+        """Получаем данные теста с комментариями"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -221,7 +233,7 @@ class TaskManager:
         result = cursor.fetchone()
         
         if result:
-            # Получаем комментарии
+
             comments = self.get_comments(task_id, test_number)
             
             test_data = {
@@ -236,6 +248,7 @@ class TaskManager:
         conn.close()
         return test_data
     
+
     def get_available_tasks(self):
         """Список всех доступных задач"""
         conn = sqlite3.connect(self.db_path)
@@ -247,6 +260,7 @@ class TaskManager:
         conn.close()
         return tasks
     
+
     def get_available_tests(self, task_id):
         """Список доступных тестов для задачи"""
         conn = sqlite3.connect(self.db_path)
@@ -262,8 +276,9 @@ class TaskManager:
         conn.close()
         return tests
 
+
     def task_exists(self, task_id):
-        """Проверяет, существует ли задача"""
+        """Проверяем, существует ли задача"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -273,8 +288,9 @@ class TaskManager:
         conn.close()
         return exists
     
+
     def get_task_name(self, task_id):
-        """Получает название задачи"""
+        """Получаем название задачи"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -284,8 +300,9 @@ class TaskManager:
         
         return result[0] if result else f"Задача {task_id}"
 
+
     def delete_task(self, task_id):
-        """Удаляет задачу и все её тесты"""
+        """Удаляем задачу и все её тесты"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -314,8 +331,9 @@ class TaskManager:
         except Exception as e:
             return False, f"Ошибка при удалении: {str(e)}"
 
+
     def get_task_stats(self, task_id):
-        """Получает статистику по задаче"""
+        """Получаем статистику по задаче"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         

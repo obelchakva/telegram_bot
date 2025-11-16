@@ -5,7 +5,6 @@ import tempfile
 import sys
 from unittest.mock import Mock, MagicMock, patch
 
-# Добавляем путь к корневой папке проекта
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from task_manager import TaskManager
@@ -20,7 +19,6 @@ def temp_db():
     
     yield temp_path
     
-    # Удаляем временный файл после тестов
     if os.path.exists(temp_path):
         os.unlink(temp_path)
 
@@ -81,13 +79,12 @@ def reset_global_state():
     """Автоматически сбрасывает глобальное состояние перед каждым тестом"""
     original_states = getattr(main, 'user_states', {})
     yield
-    # Восстанавливаем оригинальное состояние
     main.user_states = original_states.copy() if hasattr(main, 'user_states') else {}
 
 
 def get_message_text(call_args):
     """Извлекает текст сообщения из аргументов вызова mock бота"""
-    if call_args[0]:  # позиционные аргументы (chat_id, text, ...)
+    if call_args[0]:
         return call_args[0][1] if len(call_args[0]) > 1 else ""
-    else:  # именованные аргументы
+    else:
         return call_args[1].get('text', '')
