@@ -166,13 +166,12 @@ class TaskManager:
         return comments
 
 
-    def delete_comment(self, comment_id):
+    def deletecomment(self, comment_id):
         """Удаляем комментарий по ID"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Сначала получаем информацию о комментарии для сообщения
             cursor.execute('''
                 SELECT task_id, test_number, comment_text 
                 FROM comments 
@@ -185,7 +184,6 @@ class TaskManager:
             
             task_id, test_number, comment_text = comment_info
             
-            # Удаляем комментарий
             cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
             conn.commit()
             conn.close()
@@ -307,16 +305,13 @@ class TaskManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Получаем информацию о задаче для сообщения
             cursor.execute('SELECT task_name FROM tasks WHERE task_id = ?', (task_id,))
             task_info = cursor.fetchone()
             task_name = task_info[0] if task_info else f"Задача {task_id}"
             
-            # Удаляем тесты
             cursor.execute('DELETE FROM tests WHERE task_id = ?', (task_id,))
             tests_deleted = cursor.rowcount
             
-            # Удаляем задачу
             cursor.execute('DELETE FROM tasks WHERE task_id = ?', (task_id,))
             task_deleted = cursor.rowcount
             
