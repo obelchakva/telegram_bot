@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 ADMIN_PASSWORD = "101003"
 CANCEL_COMMAND = "/cancel"
+CANCEL_BUTTON = "❌ Отмена"
 load_dotenv()
 bot = telebot.TeleBot(os.getenv('TOKEN'))
 task_manager = TaskManager()
@@ -20,11 +21,6 @@ bot.set_my_commands([
 user_states = {}
 authenticated_users = set()
 
-def create_main_keyboard():
-    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('/start', '/help', '/admin', '/cancel')
-    return keyboard
-
 def admin_required(func):
     def wrapper(message):
         if message.chat.id in authenticated_users:
@@ -37,9 +33,67 @@ def admin_required(func):
             bot.register_next_step_handler(message, check_admin_password)
     return wrapper
 
+def create_main_keyboard():
+    """Основная клавиатура для главного меню"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("🏠 Начало"),
+        telebot.types.KeyboardButton("❓ Помощь с задачей")
+    )
+    keyboard.add(
+        telebot.types.KeyboardButton("👨‍🏫 Для преподавателей"),
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
+@admin_required
+def create_admin_keyboard():
+    """Клавиатура для преподавателей после авторизации"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("📤 Загрузить тесты"),
+        telebot.types.KeyboardButton("🗑 Удалить задачу")
+    )
+    keyboard.add(
+        telebot.types.KeyboardButton("💬 Добавить комментарий"),
+        telebot.types.KeyboardButton("🗑 Удалить комментарии")
+    )
+    keyboard.add(
+        telebot.types.KeyboardButton("↩️ Назад в меню"),
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
+def create_choice_keyboard():
+    """Клавиатура для выбора Да/Нет"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("✅ Да"),
+        telebot.types.KeyboardButton("❌ Нет"),
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
+def create_upload_format_keyboard():
+    """Клавиатура для выбора формата загрузки"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("📄 JSON файл"),
+        telebot.types.KeyboardButton("📝 Текстовый ввод")
+    )
+    keyboard.add(
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
 
 
 @bot.message_handler(commands=['start'])
+def handle_start_command(message):
+    send_welcome(message)
+@bot.message_handler(func=lambda message: message.text in ["🏠 Начало"])
+def handle_start_button(message):
+    send_welcome(message)
 def send_welcome(message):
     """Приветственное сообщение"""
     welcome_text = """
@@ -62,7 +116,7 @@ def send_welcome(message):
 
 def check_cancel(message):
     """Проверка на cancel"""
-    if message.text.strip().lower() == CANCEL_COMMAND.strip().lower():
+    if message.text.strip().lower() == CANCEL_COMMAND.strip().lower() or message.text.strip().lower() == CANCEL_BUTTON.strip().lower():
         user_states.pop(message.chat.id, None)
         bot.send_message(message.chat.id, "Действие отменено!", reply_markup=create_main_keyboard())
         return True
@@ -71,6 +125,11 @@ def check_cancel(message):
 
 
 @bot.message_handler(commands=['admin'])
+def handle_admin_command(message):
+    show_admin_commands(message)
+@bot.message_handler(func=lambda message: message.text in ["👨‍🏫 Для преподавателей"])
+def handle_admin_button(message):
+    show_admin_commands(message)
 def show_admin_commands(message):
     """Вывод информации для преподавателей"""
     if check_cancel(message):
@@ -106,6 +165,11 @@ def check_admin_password(message):
 
 
 @bot.message_handler(commands=['upload'])
+def handle_upload_command(message):
+    start_upload(message)
+@bot.message_handler(func=lambda message: message.text in ["📤 Загрузить тесты"])
+def handle_upload_button(message):
+    start_upload(message)
 @admin_required
 def start_upload(message):
     """Загрузка тестов"""
@@ -115,7 +179,8 @@ def start_upload(message):
                     "1. JSON-файл\n"
                     "2. Текстовое сообщение\n\n"
                     "Для отмены введите " + CANCEL_COMMAND,
-                    parse_mode='Markdown')
+                    parse_mode='Markdown',
+                    reply_markup=create_upload_format_keyboard())
     bot.register_next_step_handler(message, choose_upload_format)
 
 def choose_upload_format(message):
@@ -130,7 +195,7 @@ def choose_upload_format(message):
     
     choice = message.text.strip()
     
-    if choice == '1':
+    if choice == "📄 JSON файл":
         if check_cancel(message):
             return
         
@@ -163,7 +228,7 @@ def choose_upload_format(message):
                         "*Проверьте правильность task_id и task_name!*\n\n"
                         "Или просто выберите другую команду.",
                         parse_mode='Markdown')
-    elif choice == '2':
+    elif choice == "📝 Текстовый ввод":
         if check_cancel(message):
             return
         
@@ -185,7 +250,7 @@ def choose_upload_format(message):
         if check_cancel(message):
             return
         
-        bot.send_message(message.chat.id, f"Неверный выбор! Введите 1, 2 или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"Неверный выбор! Введите 📄 JSON файл, 📝 Текстовый ввод или {CANCEL_COMMAND}")
         bot.register_next_step_handler(message, choose_upload_format)
 
 def get_task_id_for_text_upload(message):
@@ -306,7 +371,8 @@ def ask_add_comment_after_upload(message, task_id, test_number):
                    f"Введите 'ДА' чтобы добавить комментарий\n"
                    f"Введите 'НЕТ' чтобы продолжить без комментария\n"
                    f"Или введите {CANCEL_COMMAND} для выхода",
-                   parse_mode='Markdown')
+                   parse_mode='Markdown',
+                   reply_markup=create_choice_keyboard())
     bot.register_next_step_handler(message, handle_comment_after_upload_choice)
 
 def handle_comment_after_upload_choice(message):
@@ -317,18 +383,20 @@ def handle_comment_after_upload_choice(message):
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
     test_number = user_state.get('last_test_number')
+
+    choice = message.text.strip()
     
-    if message.text.upper() == 'ДА':
+    if choice == "✅ Да":
         user_states[message.chat.id]['action'] = 'comment_after_upload'
         bot.send_message(message.chat.id,
                        "*Введите ваше ФИО:*",
                        parse_mode='Markdown')
         bot.register_next_step_handler(message, get_teacher_name_after_upload)
         
-    elif message.text.upper() == 'НЕТ':
+    elif choice == "❌ Нет":
         ask_add_another_test(message, task_id)
     else:
-        bot.send_message(message.chat.id, "Введите 'ДА' или 'НЕТ'")
+        bot.send_message(message.chat.id, "Введите ✅ Да или ❌ Нет")
         bot.register_next_step_handler(message, handle_comment_after_upload_choice)
 
 def get_teacher_name_after_upload(message):
@@ -532,6 +600,11 @@ def get_test_number(message, task_id):
 
 
 @bot.message_handler(commands=['help'])
+def handle_help_command(message):
+    start_help(message)
+@bot.message_handler(func=lambda message: message.text in ["❓ Помощь с задачей"])
+def handle_help_button(message):
+    start_help(message)
 def start_help(message):
     """Начало получения помощи"""
     if check_cancel(message):
@@ -553,6 +626,11 @@ def start_help(message):
 
 
 @bot.message_handler(commands=['delete'])
+def handle_delete_command(message):
+    start_delete(message)
+@bot.message_handler(func=lambda message: message.text in ["🗑 Удалить задачу"])
+def handle_delete_button(message):
+    start_delete(message)
 @admin_required
 def start_delete(message):
     """Удаление задачи"""
@@ -628,6 +706,11 @@ def execute_delete(message):
 
 
 @bot.message_handler(commands=['comment'])
+def handle_comment_command(message):
+    start_comment(message)
+@bot.message_handler(func=lambda message: message.text in ["💬 Добавить комментарий"])
+def handlecomment_button(message):
+    start_comment(message)
 @admin_required
 def start_comment(message):
     """Начало добавления комментария"""
@@ -759,6 +842,11 @@ def save_comment(message):
 
 
 @bot.message_handler(commands=['deletecomment'])
+def handle_deletecomment_command(message):
+    start_deletecomment(message)
+@bot.message_handler(func=lambda message: message.text in ["🗑 Удалить комментарии"])
+def handle_deletecomment_button(message):
+    start_deletecomment(message)
 @admin_required
 def start_deletecomment(message):
     """Начало удаления комментариев"""
