@@ -9,7 +9,7 @@ CANCEL_COMMAND = "/cancel"
 CANCEL_BUTTON = "❌ Отмена"
 FORBIDDEN_SYMBOLS = ['[', ']', '*', '_', '`', '{', '}', '(', ')', '~', '>', '#', '+', '-', '=', '|', '.', '!']
 load_dotenv()
-bot = telebot.TeleBot(os.getenv('TOKEN'))
+bot = telebot.TeleBot('7722825450:AAHKyoLykpV63lmZisNIargwPh5qQXqFlTg')
 task_manager = TaskManager()
 
 bot.set_my_commands([
