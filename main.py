@@ -8,7 +8,7 @@ ADMIN_PASSWORD = "101003"
 CANCEL_COMMAND = "/cancel"
 CANCEL_BUTTON = "❌ Отмена"
 load_dotenv()
-bot = telebot.TeleBot('7722825450:AAHKyoLykpV63lmZisNIargwPh5qQXqFlTg')
+bot = telebot.TeleBot(os.getenv('TOKEN'))
 task_manager = TaskManager()
 
 bot.set_my_commands([
@@ -18,20 +18,10 @@ bot.set_my_commands([
     telebot.types.BotCommand("cancel", "Отменить дейтвие"),
 ])
 
+
 user_states = {}
 authenticated_users = set()
 
-def admin_required(func):
-    def wrapper(message):
-        if message.chat.id in authenticated_users:
-            if message.chat.id not in user_states:
-                user_states[message.chat.id] = {}
-            user_states[message.chat.id]['auth'] = True
-            return func(message)
-        else:
-            bot.send_message(message.chat.id, "*Введите пароль для доступа к командам преподавателя:*", parse_mode='Markdown')
-            bot.register_next_step_handler(message, check_admin_password)
-    return wrapper
 
 def create_main_keyboard():
     """Основная клавиатура для главного меню"""
@@ -41,12 +31,14 @@ def create_main_keyboard():
         telebot.types.KeyboardButton("❓ Помощь с задачей")
     )
     keyboard.add(
-        telebot.types.KeyboardButton("👨‍🏫 Для преподавателей"),
+        telebot.types.KeyboardButton("🔐 Авторизация"),
+        telebot.types.KeyboardButton("👨‍🏫 Для преподавателей")
+    )
+    keyboard.add(
         telebot.types.KeyboardButton("❌ Отмена")
     )
     return keyboard
 
-@admin_required
 def create_admin_keyboard():
     """Клавиатура для преподавателей после авторизации"""
     keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -59,7 +51,7 @@ def create_admin_keyboard():
         telebot.types.KeyboardButton("🗑 Удалить комментарии")
     )
     keyboard.add(
-        telebot.types.KeyboardButton("↩️ Назад в меню"),
+        telebot.types.KeyboardButton("🏠 Начало"),
         telebot.types.KeyboardButton("❌ Отмена")
     )
     return keyboard
@@ -75,7 +67,6 @@ def create_choice_keyboard():
     return keyboard
 
 def create_upload_format_keyboard():
-    """Клавиатура для выбора формата загрузки"""
     keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     keyboard.add(
         telebot.types.KeyboardButton("📄 JSON файл"),
@@ -85,6 +76,38 @@ def create_upload_format_keyboard():
         telebot.types.KeyboardButton("❌ Отмена")
     )
     return keyboard
+
+def create_delete_comment_keyboard():
+    """Клавиатура для выбора формата загрузки"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("🗑 Удалить все комментарии"),
+    )
+    keyboard.add(
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
+def create_cancel_keyboard():
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        telebot.types.KeyboardButton("❌ Отмена")
+    )
+    return keyboard
+
+
+
+def admin_required(func):
+    def wrapper(message):
+        if message.chat.id in authenticated_users:
+            if message.chat.id not in user_states:
+                user_states[message.chat.id] = {}
+            user_states[message.chat.id]['auth'] = True
+            return func(message)
+        else:
+            bot.send_message(message.chat.id, "*Введите пароль для доступа к командам преподавателя:*", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
+            bot.register_next_step_handler(message, check_admin_password)
+    return wrapper
 
 
 
@@ -124,18 +147,18 @@ def check_cancel(message):
 
 
 
-@bot.message_handler(commands=['admin'])
-def handle_admin_command(message):
-    show_admin_commands(message)
-@bot.message_handler(func=lambda message: message.text in ["👨‍🏫 Для преподавателей"])
-def handle_admin_button(message):
-    show_admin_commands(message)
-def show_admin_commands(message):
+@bot.message_handler(commands=['login'])
+def handle_login_command(message):
+    show_admin_commands_login(message)
+@bot.message_handler(func=lambda message: message.text in ["🔐 Авторизация"])
+def handle_login_button(message):
+    show_admin_commands_login(message)
+def show_admin_commands_login(message):
     """Вывод информации для преподавателей"""
     if check_cancel(message):
         return
         
-    bot.send_message(message.chat.id, "*Введите пароль для доступа к командам преподавателя:*", parse_mode='Markdown')
+    bot.send_message(message.chat.id, "*Введите пароль для доступа к командам преподавателя:*", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
     bot.register_next_step_handler(message, check_admin_password)
 
 def check_admin_password(message):
@@ -150,6 +173,26 @@ def check_admin_password(message):
         user_states[message.chat.id]['auth'] = True
         
         admin_commands_text = f"""
+Авторизация прошла успешно!
+"""
+        bot.send_message(message.chat.id, admin_commands_text, parse_mode='Markdown', reply_markup=create_admin_keyboard())
+    else:
+        bot.send_message(message.chat.id, "Неверный пароль!", reply_markup=create_main_keyboard())
+
+
+
+@bot.message_handler(commands=['admin'])
+def handle_admin_command(message):
+    show_admin_commands(message)
+@bot.message_handler(func=lambda message: message.text in ["👨‍🏫 Для преподавателей"])
+def handle_admin_button(message):
+    show_admin_commands(message)
+@admin_required
+def show_admin_commands(message):
+    if check_cancel(message):
+        return
+        
+    admin_commands_text = f"""
 *Команды для преподавателей:*
 
 /upload - Загрузить новые тесты
@@ -158,9 +201,7 @@ def check_admin_password(message):
 /deletecomment - Удалить комментарий
 /cancel - Отменить действие
 """
-        bot.send_message(message.chat.id, admin_commands_text, parse_mode='Markdown', reply_markup=create_main_keyboard())
-    else:
-        bot.send_message(message.chat.id, "Неверный пароль!", reply_markup=create_main_keyboard())
+    bot.send_message(message.chat.id, admin_commands_text, parse_mode='Markdown', reply_markup=create_admin_keyboard())
 
 
 
@@ -227,7 +268,8 @@ def choose_upload_format(message):
                         "*Просто приложите этот шаблон к запросу*\n"
                         "*Проверьте правильность task_id и task_name!*\n\n"
                         "Или просто выберите другую команду.",
-                        parse_mode='Markdown')
+                        parse_mode='Markdown',
+                        reply_markup=create_cancel_keyboard())
     elif choice == "📝 Текстовый ввод":
         if check_cancel(message):
             return
@@ -240,17 +282,19 @@ def choose_upload_format(message):
             bot.send_message(message.chat.id,
                            f"*Существующие задачи:*\n\n{tasks_text}\n\n"
                            f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         else:
             bot.send_message(message.chat.id,
                            f"*Введите номер новой задачи или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_id_for_text_upload)
     else:
         if check_cancel(message):
             return
         
-        bot.send_message(message.chat.id, f"Неверный выбор! Введите 📄 JSON файл, 📝 Текстовый ввод или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"Неверный выбор! Введите 📄 JSON файл, 📝 Текстовый ввод или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_upload_format_keyboard())
         bot.register_next_step_handler(message, choose_upload_format)
 
 def get_task_id_for_text_upload(message):
@@ -272,17 +316,19 @@ def get_task_id_for_text_upload(message):
                            f"*Задача {task_id}!*\n"
                            f"*В этой задаче уже есть {tests_count} тестов:* {existing_tests_info}\n\n"
                            f"*Введите номер нового теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         else:
             bot.send_message(message.chat.id,
                            f"*Задача {task_id}!*\n"
                            f"*В этой задаче пока нет тестов.*\n\n"
                            f"*Введите номер первого теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_test_number_for_text_upload)
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_id_for_text_upload)
 
 def get_test_number_for_text_upload(message):
@@ -301,11 +347,12 @@ def get_test_number_for_text_upload(message):
         bot.send_message(message.chat.id,
                         f"*Тест {test_number}!*\n\n"
                         f"*Введите входные данные или* {CANCEL_COMMAND} *для отмены:*",
-                        parse_mode='Markdown')
+                        parse_mode='Markdown',
+                        reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_input_data_for_text_upload)
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_test_number_for_text_upload)
 
 def get_input_data_for_text_upload(message):
@@ -319,7 +366,8 @@ def get_input_data_for_text_upload(message):
     bot.send_message(message.chat.id,
                     "*Входные данные сохранены!*\n\n"
                     f"*Введите ожидаемый вывод или* {CANCEL_COMMAND} *для отмены:*",
-                    parse_mode='Markdown')
+                    parse_mode='Markdown',
+                    reply_markup=create_cancel_keyboard())
     bot.register_next_step_handler(message, get_output_data_for_text_upload)
 
 def get_output_data_for_text_upload(message):
@@ -352,7 +400,7 @@ def get_output_data_for_text_upload(message):
         ask_add_comment_after_upload(message, task_id, test_number)
         
     except Exception as e:
-        bot.send_message(message.chat.id, f"Ошибка загрузки: {str(e)}")
+        bot.send_message(message.chat.id, f"Ошибка загрузки: {str(e)}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         user_states.pop(message.chat.id, None)
 
 def ask_add_comment_after_upload(message, task_id, test_number):
@@ -390,13 +438,14 @@ def handle_comment_after_upload_choice(message):
         user_states[message.chat.id]['action'] = 'comment_after_upload'
         bot.send_message(message.chat.id,
                        "*Введите ваше ФИО:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_teacher_name_after_upload)
         
     elif choice == "❌ Нет":
         ask_add_another_test(message, task_id)
     else:
-        bot.send_message(message.chat.id, "Введите ✅ Да или ❌ Нет")
+        bot.send_message(message.chat.id, "Введите ✅ Да или ❌ Нет", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, handle_comment_after_upload_choice)
 
 def get_teacher_name_after_upload(message):
@@ -407,7 +456,7 @@ def get_teacher_name_after_upload(message):
     teacher_name = message.text.strip()
     
     if not teacher_name:
-        bot.send_message(message.chat.id, f"ФИО не может быть пустым! Введите ФИО или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"ФИО не может быть пустым! Введите ФИО или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_teacher_name_after_upload)
         return
     
@@ -415,7 +464,8 @@ def get_teacher_name_after_upload(message):
     
     bot.send_message(message.chat.id,
                    "*Введите комментарий к тесту:*",
-                   parse_mode='Markdown')
+                   parse_mode='Markdown',
+                   reply_markup=create_cancel_keyboard())
     bot.register_next_step_handler(message, save_comment_after_upload)
 
 def save_comment_after_upload(message):
@@ -430,7 +480,7 @@ def save_comment_after_upload(message):
     comment_text = message.text.strip()
     
     if not comment_text:
-        bot.send_message(message.chat.id, f"Комментарий не может быть пустым! Введите комментарий или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"Комментарий не может быть пустым! Введите комментарий или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, save_comment_after_upload)
         return
     
@@ -459,7 +509,8 @@ def ask_add_another_test(message, task_id):
                    f"Введите 'ДА' чтобы добавить следующий тест\n"
                    f"Введите 'НЕТ' чтобы завершить загрузку\n"
                    f"Или введите {CANCEL_COMMAND} для выхода",
-                   parse_mode='Markdown')
+                   parse_mode='Markdown',
+                   reply_markup=create_choice_keyboard())
     bot.register_next_step_handler(message, handle_add_another_test)
 
 def handle_add_another_test(message):
@@ -469,28 +520,32 @@ def handle_add_another_test(message):
         
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
+
+    choice = message.text.strip()
     
-    if message.text.upper() == 'ДА':
+    if choice == "✅ Да":
         existing_tests = task_manager.get_available_tests(task_id)
         if existing_tests:
             existing_tests_info = ", ".join(existing_tests)
             bot.send_message(message.chat.id,
                            f"*Текущие тесты:* {existing_tests_info}\n\n"
                            f"*Введите номер следующего теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         else:
             bot.send_message(message.chat.id,
                            f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_test_number_for_text_upload)
         
-    elif message.text.upper() == 'НЕТ':
+    elif choice == "❌ Нет":
         bot.send_message(message.chat.id, 
                         "Загрузка тестов завершена!", 
-                        reply_markup=create_main_keyboard())
+                        reply_markup=create_admin_keyboard())
         user_states.pop(message.chat.id, None)
     else:
-        bot.send_message(message.chat.id, "Введите 'ДА' или 'НЕТ'")
+        bot.send_message(message.chat.id, "Введите ✅ Да или ❌ Нет", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, handle_add_another_test)
 
 def get_task_number(message):
@@ -510,11 +565,12 @@ def get_task_number(message):
                            f"Задача {task_number} не найдена.\n\n"
                            f"*Доступные задачи:*\n\n{tasks_text}\n\n"
                            f"Введите номер задачи из списка или {CANCEL_COMMAND} для отмены:",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
             bot.register_next_step_handler(message, get_task_number)
             return
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_number)
         return
     
@@ -525,12 +581,14 @@ def get_task_number(message):
                        f"*Задача {task_number}!*\n"
                        f"Доступные тесты: {tests_info}\n\n"
                        f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
     else:
         bot.send_message(message.chat.id,
                        f"*Задача {task_number}!*\n\n"
                        f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
     
     bot.register_next_step_handler(message, lambda msg: get_test_number(msg, task_id))
 
@@ -592,7 +650,7 @@ def get_test_number(message, task_id):
         bot.send_message(message.chat.id, response, parse_mode='Markdown', reply_markup=create_main_keyboard())
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число для номера теста или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число для номера теста или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, lambda msg: get_test_number(msg, task_id))
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {str(e)}", reply_markup=create_main_keyboard())
@@ -612,7 +670,7 @@ def start_help(message):
         
     tasks = task_manager.get_available_tasks()
     if not tasks:
-        bot.send_message(message.chat.id, "Нет доступных задач.")
+        bot.send_message(message.chat.id, "Нет доступных задач.", parse_mode='Markdown', reply_markup=create_main_keyboard())
         return
     
     tasks_text = "\n".join([f"• {task}" for task in tasks])
@@ -620,7 +678,8 @@ def start_help(message):
     bot.send_message(message.chat.id,
                     f"*Доступные задачи:*\n\n{tasks_text}\n\n"
                     f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*", 
-                    parse_mode='Markdown')
+                    parse_mode='Markdown',
+                    reply_markup=create_cancel_keyboard())
     bot.register_next_step_handler(message, get_task_number)
 
 
@@ -638,13 +697,13 @@ def start_delete(message):
     if tasks:
         tasks_text = "\n".join([f"• {task}" for task in tasks])
         bot.send_message(message.chat.id,
-                       f"*Доступ разрешен!*\n\n"
                        f"*Текущие задачи:*\n\n{tasks_text}\n\n"
                        f"*Введите номер задачи для удаления:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, confirm_delete)
     else:
-        bot.send_message(message.chat.id, "Нет задач для удаления.")
+        bot.send_message(message.chat.id, "Нет задач для удаления.", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
 
 def confirm_delete(message):
     """Подтверждение удаления задачи"""
@@ -657,7 +716,7 @@ def confirm_delete(message):
         task_id_int = int(task_id)
         
         if not task_manager.task_exists(task_id_int):
-            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
+            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.", parse_mode='Markdown', reply_markup=create_main_keyboard())
             user_states.pop(message.chat.id, None)
             return
         
@@ -672,11 +731,12 @@ def confirm_delete(message):
                        f"Для подтверждения введите: ДА\n"
                        f"Для отмены введите: НЕТ\n"
                        f"Или введите {CANCEL_COMMAND} для выхода",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_choice_keyboard())
         bot.register_next_step_handler(message, execute_delete)
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, confirm_delete)
 
 def execute_delete(message):
@@ -689,16 +749,19 @@ def execute_delete(message):
         user_states.pop(message.chat.id, None)
         return
     
-    if message.text.upper() == 'ДА':
+    choice = message.text.strip()
+    
+    if choice == "✅ Да":
         try:
             success, message_text = task_manager.delete_task(task_id)
-            bot.send_message(message.chat.id, message_text, reply_markup=create_main_keyboard())
+            bot.send_message(message.chat.id, message_text, reply_markup=create_admin_keyboard())
         except Exception as e:
-            bot.send_message(message.chat.id, f"Ошибка удаления: {str(e)}", reply_markup=create_main_keyboard())
-    elif message.text.upper() == 'НЕТ':
-        bot.send_message(message.chat.id, "Удаление отменено.", reply_markup=create_main_keyboard())
+            bot.send_message(message.chat.id, f"Ошибка удаления: {str(e)}", reply_markup=create_admin_keyboard())
+
+    elif choice == "❌ Нет":
+        bot.send_message(message.chat.id, "Удаление отменено.", reply_markup=create_admin_keyboard())
     else:
-        bot.send_message(message.chat.id, "Введите 'ДА' или 'НЕТ'")
+        bot.send_message(message.chat.id, "Введите ✅ Да или ❌ Нет", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, execute_delete)
     
     user_states.pop(message.chat.id, None)
@@ -715,9 +778,9 @@ def handlecomment_button(message):
 def start_comment(message):
     """Начало добавления комментария"""
     bot.send_message(message.chat.id,
-                    "*Доступ разрешен!*\n\n"
                     "*Введите ваше ФИО:*",
-                    parse_mode='Markdown')
+                    parse_mode='Markdown',
+                    reply_markup=create_cancel_keyboard())
     bot.register_next_step_handler(message, get_teacher_name)
 
 def get_teacher_name(message):
@@ -728,7 +791,7 @@ def get_teacher_name(message):
     teacher_name = message.text.strip()
     
     if not teacher_name:
-        bot.send_message(message.chat.id, f"ФИО не может быть пустым! Введите ФИО или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"ФИО не может быть пустым! Введите ФИО или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_teacher_name)
         return
     
@@ -740,10 +803,11 @@ def get_teacher_name(message):
         bot.send_message(message.chat.id,
                        f"*Текущие задачи:*\n\n{tasks_text}\n\n"
                        f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_for_comment)
     else:
-        bot.send_message(message.chat.id, "Нет задач для комментирования.")
+        bot.send_message(message.chat.id, "Нет задач для комментирования.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
         user_states.pop(message.chat.id, None)
 
 def get_task_for_comment(message):
@@ -757,7 +821,7 @@ def get_task_for_comment(message):
         task_id_int = int(task_id)
         
         if not task_manager.task_exists(task_id_int):
-            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
+            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             return
         
@@ -770,14 +834,15 @@ def get_task_for_comment(message):
                            f"*Задача {task_id}!*\n"
                            f"Доступные тесты: {tests_info}\n\n"
                            f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
             bot.register_next_step_handler(message, get_test_for_comment)
         else:
-            bot.send_message(message.chat.id, f"У задачи {task_id} нет тестов.")
+            bot.send_message(message.chat.id, f"У задачи {task_id} нет тестов.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_for_comment)
 
 def get_test_for_comment(message):
@@ -793,7 +858,7 @@ def get_test_for_comment(message):
         test_number_int = int(test_number)
         
         if not task_manager.get_test_data(task_id, test_number_int):
-            bot.send_message(message.chat.id, f"Тест {test_number} для задачи {task_id} не найден.")
+            bot.send_message(message.chat.id, f"Тест {test_number} для задачи {task_id} не найден.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             return
         
@@ -805,17 +870,19 @@ def get_test_for_comment(message):
             bot.send_message(message.chat.id,
                            f"*Текущие комментарии к тесту {test_number}:*\n\n{comments_text}\n\n"
                            f"*Введите новый комментарий или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         else:
             bot.send_message(message.chat.id,
                            f"*Комментариев к тесту {test_number} пока нет.*\n\n"
                            f"*Введите новый комментарий или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
         
         bot.register_next_step_handler(message, save_comment)
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_test_for_comment)
 
 def save_comment(message):
@@ -830,12 +897,12 @@ def save_comment(message):
     comment_text = message.text.strip()
     
     if not comment_text:
-        bot.send_message(message.chat.id, f"Комментарий не может быть пустым! Введите комментарий или {CANCEL_COMMAND}")
+        bot.send_message(message.chat.id, f"Комментарий не может быть пустым! Введите комментарий или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, save_comment)
         return
     
     success, result_message = task_manager.add_comment(task_id, test_number, comment_text, teacher_name)
-    bot.send_message(message.chat.id, result_message)
+    bot.send_message(message.chat.id, result_message, reply_markup=create_cancel_keyboard())
     
     user_states.pop(message.chat.id, None)
 
@@ -854,13 +921,13 @@ def start_deletecomment(message):
     if tasks:
         tasks_text = "\n".join([f"• {task}" for task in tasks])
         bot.send_message(message.chat.id,
-                       f"*Доступ разрешен!*\n\n"
                        f"*Текущие задачи:*\n\n{tasks_text}\n\n"
                        f"*Введите номер задачи или* {CANCEL_COMMAND} *для отмены:*",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_for_comment_delete)
     else:
-        bot.send_message(message.chat.id, "Нет задач для управления комментариями.")
+        bot.send_message(message.chat.id, "Нет задач для управления комментариями.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
 
 def get_task_for_comment_delete(message):
     """Получение номера задачи для удаления комментариев"""
@@ -873,7 +940,7 @@ def get_task_for_comment_delete(message):
         task_id_int = int(task_id)
         
         if not task_manager.task_exists(task_id_int):
-            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.")
+            bot.send_message(message.chat.id, f"Задача {task_id} не найдена.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             return
         
@@ -886,14 +953,15 @@ def get_task_for_comment_delete(message):
                            f"*Задача {task_id}!*\n"
                            f"Доступные тесты: {tests_info}\n\n"
                            f"*Введите номер теста или* {CANCEL_COMMAND} *для отмены:*",
-                           parse_mode='Markdown')
+                           parse_mode='Markdown',
+                           reply_markup=create_cancel_keyboard())
             bot.register_next_step_handler(message, show_comments_for_deletion)
         else:
-            bot.send_message(message.chat.id, f"У задачи {task_id} нет тестов.")
+            bot.send_message(message.chat.id, f"У задачи {task_id} нет тестов.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, get_task_for_comment_delete)
 
 def show_comments_for_deletion(message):
@@ -912,7 +980,7 @@ def show_comments_for_deletion(message):
         
         if not comments:
             bot.send_message(message.chat.id, 
-                           f"У теста {test_number} задачи {task_id} нет комментариев.")
+                           f"У теста {test_number} задачи {task_id} нет комментариев.", parse_mode='Markdown', reply_markup=create_admin_keyboard())
             user_states.pop(message.chat.id, None)
             return
         
@@ -930,11 +998,12 @@ def show_comments_for_deletion(message):
                        f"• Введите 'ALL' чтобы удалить все комментарии\n"
                        f"• Введите 'CANCEL' для отмены\n"
                        f"• Или введите {CANCEL_COMMAND} для выхода",
-                       parse_mode='Markdown')
+                       parse_mode='Markdown',
+                       reply_markup=create_delete_comment_keyboard())
         bot.register_next_step_handler(message, handle_comment_deletion)
         
     except ValueError:
-        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!")
+        bot.send_message(message.chat.id, f"Введите число или {CANCEL_COMMAND} для отмены!", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         bot.register_next_step_handler(message, show_comments_for_deletion)
 
 def handle_comment_deletion(message):
@@ -945,14 +1014,14 @@ def handle_comment_deletion(message):
     user_state = user_states.get(message.chat.id, {})
     task_id = user_state.get('task_id')
     test_number = user_state.get('test_number')
-    user_choice = message.text.strip().upper()
+    choice = message.text.strip()
     
-    if user_choice == 'CANCEL':
+    if choice == "❌ Отмена":
         bot.send_message(message.chat.id, "Операция отменена.")
         user_states.pop(message.chat.id, None)
         return
     
-    elif user_choice == 'ALL':
+    elif choice == "🗑 Удалить все комментарии":
         success, result_message = task_manager.delete_all_comments(task_id, test_number)
         bot.send_message(message.chat.id, result_message)
         user_states.pop(message.chat.id, None)
@@ -961,19 +1030,19 @@ def handle_comment_deletion(message):
     else:
         try:
             comments = task_manager.get_comments_with_ids(task_id, test_number)
-            comment_index = int(user_choice) - 1
+            comment_index = int(choice) - 1
             
             if 0 <= comment_index < len(comments):
                 comment_id = comments[comment_index]['id']
                 success, result_message = task_manager.deletecomment(comment_id)
-                bot.send_message(message.chat.id, result_message)
+                bot.send_message(message.chat.id, result_message, reply_markup=create_admin_keyboard())
             else:
-                bot.send_message(message.chat.id, f"Неверный номер комментария! Введите число от 1 до {len(comments)} или {CANCEL_COMMAND}")
+                bot.send_message(message.chat.id, f"Неверный номер комментария! Введите число от 1 до {len(comments)} или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
                 bot.register_next_step_handler(message, handle_comment_deletion)
                 return
                 
         except ValueError:
-            bot.send_message(message.chat.id, f"Введите число, 'ALL', 'CANCEL' или {CANCEL_COMMAND}")
+            bot.send_message(message.chat.id, f"Введите число, 🗑 Удалить все комментарии, ❌ Отмена или {CANCEL_COMMAND}", parse_mode='Markdown', reply_markup=create_delete_comment_keyboard())
             bot.register_next_step_handler(message, handle_comment_deletion)
             return
     
@@ -987,7 +1056,7 @@ def handle_document(message):
     user_state = user_states.get(message.chat.id, {})
     
     if not user_state.get('auth'):
-        bot.send_message(message.chat.id, "Сначала получите доступ через /upload")
+        bot.send_message(message.chat.id, "Сначала получите доступ", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
         return
     
     try:
@@ -995,7 +1064,7 @@ def handle_document(message):
         downloaded_file = bot.download_file(file_info.file_path)
         
         if not message.document.file_name.endswith('.json'):
-            bot.send_message(message.chat.id, "Файл должен быть в формате JSON")
+            bot.send_message(message.chat.id, "Файл должен быть в формате JSON", parse_mode='Markdown', reply_markup=create_cancel_keyboard())
             return
         
         json_content = downloaded_file.decode('utf-8')
@@ -1007,7 +1076,7 @@ def handle_document(message):
         user_states.pop(message.chat.id, None)
         
     except Exception as e:
-        bot.send_message(message.chat.id, f"Ошибка обработки файла: {str(e)}", reply_markup=create_main_keyboard())
+        bot.send_message(message.chat.id, f"Ошибка обработки файла: {str(e)}", reply_markup=create_admin_keyboard())
 
 
 
